@@ -3,7 +3,6 @@ class Adversary:
         self._shared_base = shared_base
         self._shared_prime = shared_prime
 
-        self
 
     def find_person_private_key(self, person_public_key):
         for possible_key in range(1, self._shared_prime - 1):
