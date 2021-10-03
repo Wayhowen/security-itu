@@ -27,5 +27,5 @@ class Person:
 
     def decrypt_message(self, message, sender_public_key):
         cipher = pow(sender_public_key, self.private_key, self._shared_prime)
-        return int(round(message * pow(cipher, -1)))
+        return message // cipher
 

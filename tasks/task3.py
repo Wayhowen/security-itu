@@ -1,6 +1,6 @@
 from people.adversary import Adversary
-from people.person import Person as Bob
 from people.person import Person as Alice
+from people.person import Person as Bob
 
 
 def task():
@@ -16,11 +16,10 @@ def task():
 
     encrypted_message = alice.encrypt_message(message, bob.public_key)
     print(f"Encrypted message is: {encrypted_message}")
-    bobs_private_key = adversary.find_person_private_key(bob.public_key)
-    print(f"Adversary found bobs private key to be: {bobs_private_key}")
-    decrypted_message = adversary.decrypt_message(encrypted_message, bobs_private_key,
-                                                  alice.public_key)
-    print(f"Decrypted message is: {decrypted_message}")
+    encrypted_message = adversary.modify_message_contents(encrypted_message)
+    print(f"Encrypted message modified by adversary is: {encrypted_message}")
+    decrypted_message = bob.decrypt_message(encrypted_message, alice.public_key)
+    print(f"Decrypted modified message is: {decrypted_message}")
 
 
 if __name__ == '__main__':
