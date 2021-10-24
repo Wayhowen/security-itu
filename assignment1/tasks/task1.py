@@ -1,5 +1,5 @@
-from people.person import Person as Alice
-from people.person import Person as Bob
+from assignment1.people.person import Person as Alice
+from assignment1.people.person import Person as Bob
 
 
 def task():
