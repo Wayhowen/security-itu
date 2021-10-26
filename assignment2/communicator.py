@@ -1,7 +1,9 @@
 import asyncio
-import sys
+from typing import Optional
 
 import websockets
+
+from assignment1.people.signature_tool import SignatureTool
 
 
 class Communicator:
@@ -18,6 +20,8 @@ class Communicator:
 
         self._to_send = asyncio.Queue(maxsize=1)
         self._received = asyncio.Queue(maxsize=1)
+
+        self._signature_tool: Optional[SignatureTool] = None
 
         asyncio.ensure_future(self._run())
         asyncio.ensure_future(self._send_messages())
@@ -45,6 +49,9 @@ class Communicator:
             except OSError:
                 pass
 
+    def set_signature_tool(self, signature_tool):
+        self._signature_tool = signature_tool
+
     async def send_message(self, message):
         await self._to_send.put(message)
         while self._to_send.full():
@@ -52,3 +59,14 @@ class Communicator:
 
     async def receive_message(self, ):
         return await self._received.get()
+
+    async def send_message_securely(self, message):
+        signature = self._signature_tool.sign_message(message)
+        await self.send_message(message)
+        await self.send_message(signature)
+
+    async def receive_message_securely(self):
+        message = await self.receive_message()
+        signature = await self.receive_message()
+        self._signature_tool.verify_message(message, signature)
+        return message
