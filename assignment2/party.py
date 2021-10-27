@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, \
     load_pem_public_key, ParameterFormat, load_pem_parameters
 
+from assignment1.people.encryption_tool import EncryptionTool
 from assignment1.people.signature_tool import SignatureTool
 from assignment2.communicator import Communicator
 
@@ -74,15 +75,15 @@ class Party:
                                                      backend=default_backend())
             message = self.parameters.parameter_bytes(encoding=Encoding.PEM,
                                                       format=ParameterFormat.PKCS3)
-            await self.communicator.send_message_securely(message)
+            await self.communicator.sign_and_send_message(message)
         else:
-            message = await self.communicator.receive_message_securely()
+            message = await self.communicator.receive_and_verify_signed_message()
             self.parameters = load_pem_parameters(message, backend=default_backend())
 
         public_key_bytes = self.dh_public_key.public_bytes(format=PublicFormat.SubjectPublicKeyInfo,
                                                            encoding=Encoding.PEM)
-        await self.communicator.send_message_securely(public_key_bytes)
-        other_party_public_dh_key = await self.communicator.receive_message_securely()
+        await self.communicator.sign_and_send_message(public_key_bytes)
+        other_party_public_dh_key = await self.communicator.receive_and_verify_signed_message()
         oppk = load_pem_public_key(other_party_public_dh_key, backend=default_backend())
         self.shared_key = self.dh_private_key.exchange(oppk)
         print(f"Shared key is: {self.shared_key}")
@@ -97,54 +98,48 @@ class Party:
         # initialization vector doesn't have to be encoded
         if self.starting:
             initialization_vector = os.urandom(16)
-            await self.communicator.send_message_securely(initialization_vector)
+            await self.communicator.sign_and_send_message(initialization_vector)
         else:
-            initialization_vector = await self.communicator.receive_message_securely()
+            initialization_vector = await self.communicator.receive_and_verify_signed_message()
         print(f"Initialization vector set to: {initialization_vector}")
 
-        cipher = Cipher(algorithms.AES(self.derived_key), modes.CBC(initialization_vector),
-                        backend=default_backend())
-        print(f"Using {cipher.algorithm.name} with {cipher.mode.name} to encrypt the data")
-        encryptor = cipher.encryptor()
+        encryption_tool = EncryptionTool(self.derived_key, initialization_vector)
+        self.communicator.set_encryption_tool(encryption_tool)
+
         local_throw = self._make_a_throw()
         print(f"Local throw is: {local_throw}")
-        padded_data = self._add_message_padding(local_throw)
-        encrypted_message = encryptor.update(padded_data) + encryptor.finalize()
 
         if self.starting:
             random_value = os.urandom(32)
 
-            concatenated_values = encrypted_message + random_value
-            fh = hashes.Hash(hashes.SHA256(), backend=default_backend())
-            fh.update(concatenated_values)
-            fh = fh.finalize()
+            concatenated_values = local_throw + random_value
+            commitment = hashes.Hash(hashes.SHA256(), backend=default_backend())
+            commitment.update(concatenated_values)
+            commitment = commitment.finalize()
 
-            await self.communicator.send_message_securely(fh)
+            await self.communicator.sign_encrypt_and_send_message(commitment)
         else:
-            await self.communicator.send_message_securely(encrypted_message)
+            await self.communicator.sign_encrypt_and_send_message(local_throw)
 
-        rec_msg = await self.communicator.receive_message_securely()
+        received_message = await self.communicator.receive_decrypt_and_verify_message()
 
         if self.starting:
-            await self.communicator.send_message_securely(encrypted_message)
-            await self.communicator.send_message_securely(random_value)
+            await self.communicator.sign_encrypt_and_send_message(local_throw)
+            await self.communicator.sign_encrypt_and_send_message(random_value)
+            other_client_throw = received_message
         else:
-            other_client_throw = await self.communicator.receive_message_securely()
-            other_client_random_value = await self.communicator.receive_message_securely()
+            other_client_throw = await self.communicator.receive_decrypt_and_verify_message()
+            other_client_random_value = await self.communicator.receive_decrypt_and_verify_message()
 
             concatenated_values = other_client_throw + other_client_random_value
             rec_digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
             rec_digest.update(concatenated_values)
             digest_bytes = rec_digest.finalize()
-            if digest_bytes != rec_msg:
+            if digest_bytes != received_message:
                 raise Exception("Other client changed their commitment")
-            rec_msg = other_client_throw
 
-        decryptor = cipher.decryptor()
-        msg = decryptor.update(rec_msg) + decryptor.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        data = unpadder.update(msg) + unpadder.finalize()
-        throw_result = (int(local_throw.decode()) + int(data.decode())) % 6 + 1
+        print("received throw", other_client_throw)
+        throw_result = (int(local_throw.decode()) + int(other_client_throw.decode())) % 6 + 1
         print(f"Common throw result is: {throw_result}")
         self.starting = int(not self.starting)
 

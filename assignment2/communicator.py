@@ -3,6 +3,7 @@ from typing import Optional
 
 import websockets
 
+from assignment1.people.encryption_tool import EncryptionTool
 from assignment1.people.signature_tool import SignatureTool
 
 
@@ -22,6 +23,7 @@ class Communicator:
         self._received = asyncio.Queue(maxsize=1)
 
         self._signature_tool: Optional[SignatureTool] = None
+        self._encryption_tool: Optional[EncryptionTool] = None
 
         asyncio.ensure_future(self._run())
         asyncio.ensure_future(self._send_messages())
@@ -52,6 +54,9 @@ class Communicator:
     def set_signature_tool(self, signature_tool):
         self._signature_tool = signature_tool
 
+    def set_encryption_tool(self, encryption_tool):
+        self._encryption_tool = encryption_tool
+
     async def send_message(self, message):
         await self._to_send.put(message)
         while self._to_send.full():
@@ -60,13 +65,26 @@ class Communicator:
     async def receive_message(self, ):
         return await self._received.get()
 
-    async def send_message_securely(self, message):
+    async def sign_and_send_message(self, message):
         signature = self._signature_tool.sign_message(message)
         await self.send_message(message)
         await self.send_message(signature)
 
-    async def receive_message_securely(self):
+    async def receive_and_verify_signed_message(self):
         message = await self.receive_message()
         signature = await self.receive_message()
         self._signature_tool.verify_message(message, signature)
         return message
+
+    async def sign_encrypt_and_send_message(self, message):
+        signature = self._signature_tool.sign_message(message)
+        await self.send_message(self._encryption_tool.pad_and_encrypt_message(message))
+        await self.send_message(self._encryption_tool.pad_and_encrypt_message(signature))
+
+    async def receive_decrypt_and_verify_message(self):
+        unpadded_message = self._encryption_tool.decrypt_and_unpad_message(
+            await self.receive_message())
+        unpadded_signature = self._encryption_tool.decrypt_and_unpad_message(
+            await self.receive_message())
+        self._signature_tool.verify_message(unpadded_message, unpadded_signature)
+        return unpadded_message
