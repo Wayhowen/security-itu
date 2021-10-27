@@ -3,8 +3,8 @@ from typing import Optional
 
 import websockets
 
-from assignment1.people.encryption_tool import EncryptionTool
-from assignment1.people.signature_tool import SignatureTool
+from encryption_tool import EncryptionTool
+from signature_tool import SignatureTool
 
 
 class Communicator:

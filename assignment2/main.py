@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from assignment2.party import Party
+from party import Party
 
 
 def main(keyword_arguments):
@@ -11,7 +11,7 @@ def main(keyword_arguments):
 
 
 if __name__ == '__main__':
-    required_keywords = ["name", "starting"]
+    required_keywords = ["starting", "number_of_throws"]
     arguments = sys.argv[1:]
     keyword_arguments = {sel[0]: sel[1] for sel in [el.split("=") for el in sys.argv[1:]]}
 

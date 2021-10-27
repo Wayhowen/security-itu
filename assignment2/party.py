@@ -4,20 +4,19 @@ import sys
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.asymmetric import dh, rsa
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, \
     load_pem_public_key, ParameterFormat, load_pem_parameters
 
-from assignment1.people.encryption_tool import EncryptionTool
-from assignment1.people.signature_tool import SignatureTool
-from assignment2.communicator import Communicator
+from encryption_tool import EncryptionTool
+from signature_tool import SignatureTool
+from communicator import Communicator
 
 
 class Party:
-    def __init__(self, name, starting, **kwargs):
-        self.name = name
+    def __init__(self, starting, number_of_throws, **kwargs):
         self.starting = int(starting)
+        self.number_of_throws = int(number_of_throws)
 
         self.parameters = None
 
@@ -49,7 +48,8 @@ class Party:
         await self.rsa_exchange()
         print("=== DIFFIE-HELLMAN ===")
         await self.diffie_hellman_exchange()
-        for i in range(1, 5):
+        print("=== GAME OF DICE ===")
+        for i in range(1, self.number_of_throws + 1):
             print(f"=== Throw {i} ===")
             await self.make_throw()
 
@@ -138,9 +138,9 @@ class Party:
             if digest_bytes != received_message:
                 raise Exception("Other client changed their commitment")
 
-        print("received throw", other_client_throw)
+        print("Received throw", other_client_throw)
         throw_result = (int(local_throw.decode()) + int(other_client_throw.decode())) % 6 + 1
-        print(f"Common throw result is: {throw_result}")
+        print(f"The resulting throw is: {throw_result}")
         self.starting = int(not self.starting)
 
     def _make_a_throw(self):
